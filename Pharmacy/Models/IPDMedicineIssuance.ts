@@ -26,6 +26,7 @@ export interface IIPDMedicineIssuance extends Document {
     items: IIssuanceItem[];
     status: "ISSUED" | "RETURN_REQUESTED" | "RETURN_APPROVED" | "CLOSED";
     totalAmount: number;
+    invoiceNo?: string;
     notes?: string;
     issuedAt: Date;
     createdAt: Date;
@@ -74,6 +75,7 @@ const ipdMedicineIssuanceSchema = new Schema<IIPDMedicineIssuance>(
             default: "ISSUED",
         },
         totalAmount: { type: Number, required: true },
+        invoiceNo: { type: String, unique: true, sparse: true },
         notes: { type: String },
         issuedAt: { type: Date, default: Date.now },
     },
@@ -85,6 +87,7 @@ ipdMedicineIssuanceSchema.plugin(multiTenancyPlugin);
 // Fast lookups per admission and hospital
 ipdMedicineIssuanceSchema.index({ admissionId: 1, hospital: 1 });
 ipdMedicineIssuanceSchema.index({ patient: 1, hospital: 1 });
+ipdMedicineIssuanceSchema.index({ invoiceNo: 1 }, { unique: true, sparse: true });
 
 export default mongoose.model<IIPDMedicineIssuance>(
     "IPDMedicineIssuance",

@@ -8,6 +8,8 @@ import DoctorProfile from "../../Doctor/Models/DoctorProfile.js";
 import IPDAdmission from "../../IPD/Models/IPDAdmission.js";
 import Bed from "../../IPD/Models/Bed.js";
 import Patient from "../../Patient/Models/Patient.js";
+import { generatePharmaId } from "../utils/idGenerator.js";
+import PharmaProfile from "../Models/PharmaProfile.js";
 
 interface PharmacyTokenRequest extends Request {
   user?: any;
@@ -57,9 +59,13 @@ export const createPharmacyToken = async (
       hospital = doctorProfile.hospital;
     }
 
-    // Generate a unique token number
-    const count = await PharmacyToken.countDocuments();
-    const tokenNumber = `PHARMA-${Date.now().toString().slice(-6)}-${count + 1}`;
+    // Resolve primary pharmacy profile to generate standard prefix
+    const pharmaProfile = await PharmaProfile.findOne({ hospital }).lean();
+    const pharmaName = pharmaProfile?.businessName || "PHARMA";
+    const pharmacyId = pharmaProfile?._id || hospital;
+
+    // Generate Structured Token/Order Number (PREFIX-RAND-SEQ)
+    const tokenNumber = await generatePharmaId(pharmacyId, pharmaName, "order");
 
     const pharmacyToken = new PharmacyToken({
       appointment: appointmentId || undefined,

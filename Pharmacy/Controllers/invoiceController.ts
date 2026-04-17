@@ -9,6 +9,7 @@ import IPDMedicineIssuance from "../Models/IPDMedicineIssuance.js";
 import Transaction from "../../Admin/Models/Transaction.js";
 import mongoose from "mongoose";
 import redisService from "../../config/redis.js";
+import { generatePharmaId } from "../utils/idGenerator.js";
 
 export const getInvoices = async (req: PharmaRequest, res: Response) => {
   try {
@@ -82,7 +83,7 @@ export const getInvoices = async (req: PharmaRequest, res: Response) => {
     }
 
     if (search) {
-       ipdMatchStage.admissionId = { $regex: search as string, $options: "i" };
+      ipdMatchStage.admissionId = { $regex: search as string, $options: "i" };
     }
 
     const [totalInvoices, invoices, ipdIssuances] = await Promise.all([
@@ -121,49 +122,49 @@ export const getInvoices = async (req: PharmaRequest, res: Response) => {
     // Group IPD Issuances by Admission ID to avoid duplicates in transaction list
     const groupedIpdMap = new Map();
     ipdIssuances.forEach((iss: any) => {
-        const key = iss.admissionId;
-        if (!groupedIpdMap.has(key)) {
-            groupedIpdMap.set(key, {
-                _id: iss._id,
-                invoiceNo: iss.admissionId,
-                patientName: iss.patient?.name || "IPD Patient",
-                customerPhone: iss.patient?.mobile || "-",
-                netPayable: 0,
-                subTotal: 0,
-                taxTotal: 0,
-                discountTotal: 0,
-                status: iss.status === "CLOSED" ? "PAID" : "PENDING",
-                mode: "IPD BILLING",
-                createdAt: iss.issuedAt,
-                updatedAt: iss.updatedAt,
-                items: [],
-                createdBy: iss.issuedBy,
-                doctorName: (iss.admission as any)?.primaryDoctor?.user?.name || "IPD Admission",
-                isIPD: true
-            });
-        }
-        
-        const group = groupedIpdMap.get(key);
-        group.netPayable += (iss.totalAmount || 0);
-        group.subTotal += (iss.totalAmount || 0);
-        
-        // Merge items (optional: consolidate similar items or just list all)
-        iss.items.forEach((i: any) => {
-            group.items.push({
-                productName: i.productName,
-                qty: i.issuedQty,
-                unitRate: i.unitRate,
-                amount: i.totalAmount,
-                batchNo: i.batchNo || "-",
-                expiryDate: i.batch?.expiry,
-                hsnCode: i.product?.hsnCode || "-"
-            });
+      const key = iss.admissionId;
+      if (!groupedIpdMap.has(key)) {
+        groupedIpdMap.set(key, {
+          _id: iss._id,
+          invoiceNo: iss.invoiceNo || iss.admissionId,
+          patientName: iss.patient?.name || "IPD Patient",
+          customerPhone: iss.patient?.mobile || "-",
+          netPayable: 0,
+          subTotal: 0,
+          taxTotal: 0,
+          discountTotal: 0,
+          status: iss.status === "CLOSED" ? "PAID" : "PENDING",
+          mode: "IPD BILLING",
+          createdAt: iss.issuedAt,
+          updatedAt: iss.updatedAt,
+          items: [],
+          createdBy: iss.issuedBy,
+          doctorName: (iss.admission as any)?.primaryDoctor?.user?.name || "IPD Admission",
+          isIPD: true
         });
-        
-        // Update to latest date if needed
-        if (new Date(iss.issuedAt) > new Date(group.createdAt)) {
-            group.createdAt = iss.issuedAt;
-        }
+      }
+
+      const group = groupedIpdMap.get(key);
+      group.netPayable += (iss.totalAmount || 0);
+      group.subTotal += (iss.totalAmount || 0);
+
+      // Merge items (optional: consolidate similar items or just list all)
+      iss.items.forEach((i: any) => {
+        group.items.push({
+          productName: i.productName,
+          qty: i.issuedQty,
+          unitRate: i.unitRate,
+          amount: i.totalAmount,
+          batchNo: i.batchNo || "-",
+          expiryDate: i.batch?.expiry,
+          hsnCode: i.product?.hsnCode || "-"
+        });
+      });
+
+      // Update to latest date if needed
+      if (new Date(iss.issuedAt) > new Date(group.createdAt)) {
+        group.createdAt = iss.issuedAt;
+      }
     });
 
     const mappedIpd = Array.from(groupedIpdMap.values());
@@ -431,25 +432,8 @@ export const createInvoice = async (req: PharmaRequest, res: Response) => {
 
     const roundOff = netPayable - (subTotal - discountTotal);
 
-    // Generate Sequential Invoice Number (PH/YY/Count/Rand)
-    const date = new Date();
-    const year = date.getFullYear().toString().slice(-2);
-    const lastInvoice = await PharmaInvoice.findOne({ pharmacy: pharmacyId })
-      .sort({ createdAt: -1 })
-      .session(session);
-
-    let sequence = 1;
-    if (lastInvoice && lastInvoice.invoiceNo) {
-      const parts = lastInvoice.invoiceNo.split("/");
-      const lastCount = parseInt(parts[parts.length - 1]);
-      if (!isNaN(lastCount)) {
-        sequence = lastCount + 1;
-      }
-    }
-    const rand = Math.floor(Math.random() * 1000)
-      .toString()
-      .padStart(3, "0");
-    const invoiceNo = `PH/${year}/${sequence.toString().padStart(6, "0")}-${rand}`;
+    // Generate Structured Invoice Number (PREFIX-RAND-SEQ)
+    const invoiceNo = await generatePharmaId(pharmacyId, req.pharma?.businessName || "PHARMA", "invoice", session);
 
     const invoice = await PharmaInvoice.create(
       [
