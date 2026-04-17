@@ -383,6 +383,17 @@ export const getBedDetails = asyncHandler(
                 (adm.totalBilledAmount || bedCharge) - (adm.advancePaid || 0),
               status: adm.paymentStatus || "Pending",
             },
+            bedHistory: (await BedOccupancy.find({ admission: adm._id })
+              .sort({ startDate: 1 })
+              .populate("bed")
+              .lean()).map((occ: any) => ({
+                bedId: occ.bed?.bedId || "Unknown Bed",
+                room: occ.bed?.room || "N/A",
+                type: occ.bed?.type || "N/A",
+                startDate: occ.startDate,
+                endDate: occ.endDate,
+                pricePerDay: occ.dailyRateAtTime || occ.bed?.pricePerDay || 0
+              }))
           };
         } catch (err: any) {
           console.error("Critical Error in IPD Occupancy Processing:", err);

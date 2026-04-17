@@ -17,6 +17,8 @@ import Hospital from "../../Hospital/Models/Hospital.js";
 import { AuthRequest } from "../../Auth/types/index.js";
 import labService from "../../services/lab.service.js";
 import redisService from "../../config/redis.js";
+import BedOccupancy from "../../IPD/Models/BedOccupancy.js";
+import Bed from "../../IPD/Models/Bed.js";
 
 // 1. Create Order (Step 2: Patient comes to Lab)
 export const createLabOrder = async (req: Request, res: Response) => {
@@ -1398,17 +1400,31 @@ export const getLabTests = async (req: Request, res: Response) => {
 // Helper to map backend LabOrder to frontend LabSample structure
 const mapOrderToSample = (o: any) => {
   // Helper to calculate age from DOB
-  const calculateAge = (dob: any) => {
+  const calculateAge = (dob: string | Date) => {
     if (!dob) return 0;
     const birthDate = new Date(dob);
     const today = new Date();
     let age = today.getFullYear() - birthDate.getFullYear();
-    const m = today.getMonth() - birthDate.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    const month = today.getMonth() - birthDate.getMonth();
+    if (month < 0 || (month === 0 && today.getDate() < birthDate.getDate())) {
       age--;
     }
     return age;
   };
+
+  // Resolve Bed Info from Admission
+  let bedInfo: any = null;
+  if (o.admission) {
+    if (typeof o.admission === "object" && o.admission.bedId) {
+      bedInfo = {
+        bedId: o.admission.bedId,
+        room: o.admission.roomName || "General",
+        type: o.admission.bedType || "Standard",
+      };
+    } else if (o.resolvedBed) {
+      bedInfo = o.resolvedBed;
+    }
+  }
 
   // Determine patient details
   const patientDetails = o.walkInPatient
@@ -1429,6 +1445,7 @@ const mapOrderToSample = (o: any) => {
         mobile: o.patient?.mobile || "N/A",
         refDoctor: o.doctor?.user?.name || o.doctor?.name || "",
         patientId: o.patient?._id,
+        bedInfo: bedInfo // Injected bed info
       };
 
   // Determine status mapping
@@ -1518,7 +1535,7 @@ export const getInternalOrders = async (req: Request, res: Response) => {
 
     const [orders, walkIns] = await Promise.all([
       LabOrder.find(internalQuery)
-        .populate("patient doctor referredBy")
+        .populate("patient doctor referredBy admission")
         .populate({
           path: "tests.test",
           options: { unscoped: true },
@@ -1587,6 +1604,43 @@ export const getInternalOrders = async (req: Request, res: Response) => {
         o.doctor = { _id: o.referredBy._id, name: o.referredBy.name };
       }
     });
+
+    // ✅ BED RESOLUTION: Fetch active bed for IPD orders
+    const admissionIds = (orders as any[])
+      .filter((o) => o.admission && !o.admission.bedId) // Only if not already enriched
+      .map((o) => o.admission._id || o.admission);
+
+    if (admissionIds.length > 0) {
+      const occupancies = await (BedOccupancy.find({
+        admission: { $in: admissionIds },
+        endDate: { $exists: false },
+      }) as any)
+        .unscoped()
+        .populate({
+            path: 'bed',
+            select: 'bedId room type',
+            options: { unscoped: true }
+        })
+        .lean();
+      
+      const occMap = new Map();
+      occupancies.forEach((occ: any) => {
+        if (occ.admission) occMap.set(occ.admission.toString(), occ.bed);
+      });
+
+      (orders as any[]).forEach((o) => {
+        if (o.admission) {
+          const bed = occMap.get((o.admission._id || o.admission).toString());
+          if (bed) {
+            o.resolvedBed = {
+              bedId: bed.bedId,
+              room: bed.room,
+              type: bed.type
+            };
+          }
+        }
+      });
+    }
 
     // Merge all
     const allFetchedOrders = [...orders, ...walkIns].sort(

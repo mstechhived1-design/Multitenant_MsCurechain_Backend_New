@@ -30,7 +30,7 @@ export const getPatientHourlyRecord = asyncHandler(async (req: Request, res: Res
     if (!admission) throw new ApiError(404, "Admission not found");
 
     // Fetch all related records for this admission
-    const [vitals, allMeds, labOrders, occupancy, diet] = await Promise.all([
+    const [vitals, allMeds, labOrders, occupancies, diet] = await Promise.all([
         VitalsRecord.find({ admission: admission._id })
             .populate('recordedBy', 'name')
             .sort({ timestamp: 1 }),
@@ -49,10 +49,9 @@ export const getPatientHourlyRecord = asyncHandler(async (req: Request, res: Res
             .populate('tests.test')
             .populate('doctor', 'name')
             .sort({ createdAt: 1 }),
-        BedOccupancy.findOne({
-            admission: admission._id,
-            endDate: { $exists: false }
-        }).populate('bed'),
+        BedOccupancy.find({
+            admission: admission._id
+        }).populate('bed').sort({ startDate: 1 }),
         DietLog.find({ admission: admission._id })
             .populate('recordedBy', 'name')
             .sort({ timestamp: 1 })
@@ -64,6 +63,17 @@ export const getPatientHourlyRecord = asyncHandler(async (req: Request, res: Res
     // in the monitoring UI, that's handled in the portal controllers.
     // For this report, we'll keep the actual administration records (meds) as is.
     const meds = allMeds;
+
+    // Latest / Current occupancy
+    const currentOccupancy = occupancies.find(occ => !occ.endDate);
+    const bedHistory = occupancies.map(occ => ({
+        ward: (occ.bed as any)?.ward || (occ.bed as any)?.type || 'N/A',
+        room: (occ.bed as any)?.room || 'N/A',
+        bed: (occ.bed as any)?.bedId || 'N/A',
+        startDate: occ.startDate,
+        endDate: occ.endDate || 'Current',
+        rate: occ.dailyRateAtTime
+    }));
 
     // Format the data for the consolidated view
     res.json({
@@ -77,9 +87,10 @@ export const getPatientHourlyRecord = asyncHandler(async (req: Request, res: Res
                 admissionType: admission.admissionType,
                 diet: admission.diet,
                 status: admission.status,
-                wardName: (occupancy?.bed as any)?.ward || (occupancy?.bed as any)?.type || '',
-                roomName: (occupancy?.bed as any)?.room || '',
-                bedName: (occupancy?.bed as any)?.bedId || ''
+                wardName: (currentOccupancy?.bed as any)?.ward || (currentOccupancy?.bed as any)?.type || '',
+                roomName: (currentOccupancy?.bed as any)?.room || '',
+                bedName: (currentOccupancy?.bed as any)?.bedId || '',
+                bedHistory
             },
             vitals,
             meds,

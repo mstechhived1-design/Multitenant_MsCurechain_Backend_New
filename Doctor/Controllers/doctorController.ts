@@ -759,6 +759,28 @@ export const getPatientDetails = async (req: Request, res: Response) => {
           timestamp: vitalsRecord.timestamp,
         };
       }
+
+      // ✅ BED HISTORY: Fetch all previous room/bed transfers for this admission
+      const bedHistoryRecords = await (BedOccupancy.find({
+        admission: activeAdmission._id,
+      }) as any)
+        .unscoped()
+        .sort({ startDate: 1 })
+        .populate({
+            path: "bed",
+            select: "bedId room type dailyRateAtTime pricePerDay",
+            options: { unscoped: true } as any
+        })
+        .lean();
+
+      (activeAdmission as any).bedHistory = bedHistoryRecords.map((occ: any) => ({
+        bedId: occ.bed?.bedId || "Unknown",
+        room: occ.bed?.room || "General",
+        type: occ.bed?.type || "Standard",
+        startDate: occ.startDate,
+        endDate: occ.endDate,
+        pricePerDay: occ.dailyRateAtTime || occ.bed?.pricePerDay || 0
+      }));
     }
 
     // Assemble clean response data

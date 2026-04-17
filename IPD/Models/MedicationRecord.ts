@@ -10,7 +10,7 @@ export interface IMedicationRecord extends Document {
   dose: string;
   prescription: mongoose.Types.ObjectId;
   medicineId: string;
-  timeSlot: "Morning" | "Afternoon" | "Evening" | "Night" | "SOS" | "General";
+  timeSlot: "Morning" | "Afternoon" | "Evening" | "Night" | "SOS" | "General" | "Custom";
   route:
     | "Oral"
     | "IV"
@@ -59,7 +59,7 @@ const medicationRecordSchema = new Schema<IMedicationRecord>(
     medicineId: { type: String, required: true },
     timeSlot: {
       type: String,
-      enum: ["Morning", "Afternoon", "Evening", "Night", "SOS", "General"],
+      enum: ["Morning", "Afternoon", "Evening", "Night", "SOS", "General", "Custom"],
       required: true,
     },
     route: {
