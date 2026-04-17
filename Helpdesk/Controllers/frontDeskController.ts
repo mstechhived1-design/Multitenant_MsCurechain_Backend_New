@@ -12,6 +12,7 @@ import IPDAdmission from "../../IPD/Models/IPDAdmission.js";
 import BedOccupancy from "../../IPD/Models/BedOccupancy.js";
 import crypto from "crypto";
 import bcrypt from "bcrypt";
+import MrnCounter from "../../Hospital/Models/MrnCounter.js";
 import { HelpdeskRequest } from "../types/index.js";
 import redisService from "../../config/redis.js";
 import Transaction from "../../Admin/Models/Transaction.js";
@@ -71,6 +72,18 @@ const generateId = (prefix: string) => {
     .toString()
     .padStart(3, "0");
   return `${prefix}-${timestamp}-${random}`;
+};
+
+// Helper to generate 3-letter Hospital abbreviation
+const getHospitalAbbreviation = (name: string) => {
+    const words = name.trim().split(/\s+/);
+    if (words.length >= 3) {
+        return (words[0][0] + words[1][0] + words[2][0]).toUpperCase();
+    } else {
+        // Remove spaces and special characters for shorter names
+        const cleanName = name.replace(/[^a-zA-Z]/g, '');
+        return cleanName.slice(0, 3).toUpperCase();
+    }
 };
 
 export const registerPatient = asyncHandler(
@@ -306,16 +319,26 @@ export const registerPatient = asyncHandler(
       }
 
       if (!patientProfile) {
-        patientProfile = await (
-          PatientProfile.findOne({
-            user: user._id,
-            hospital: hospitalId,
-          }) as any
-        ).unscoped();
-      }
+        // Resolve hospital name to generate standard 3-letter prefix
+        const hospital = await Hospital.findById(hospitalId).session(session).lean();
+        if (!hospital) {
+            throw new ApiError(404, "Hospital not found for MRN generation");
+        }
+        
+        const prefix = getHospitalAbbreviation(hospital.name);
 
-      if (!patientProfile) {
-        const mrn = generateId("MRN");
+        // Random 4-digit numeric variability segment
+        const randomPart = Math.floor(1000 + Math.random() * 9000).toString();
+
+        // Atomic increment of the MRN sequence for this specific hospital (5 digits)
+        const counter = await MrnCounter.findOneAndUpdate(
+            { hospital: hospitalId },
+            { $inc: { sequence: 1 } },
+            { new: true, upsert: true, session }
+        );
+
+        const sequenceStr = counter.sequence.toString().padStart(5, "0");
+        const mrn = `${prefix}${randomPart}${sequenceStr}`;
         patientProfile = new PatientProfile({
           user: user._id,
           hospital: hospitalId,

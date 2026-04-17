@@ -13,6 +13,7 @@ import PharmaProfile from "../Models/PharmaProfile.js";
 import PharmacyOrder from "../Models/PharmacyOrder.js";
 import MedicationRecord from "../../IPD/Models/MedicationRecord.js";
 import Transaction from "../../Admin/Models/Transaction.js";
+import { generatePharmaId } from "../utils/idGenerator.js";
 
 // ─── Issue Medicines to IPD Patient ──────────────────────────────────────────
 export const issueForIPD = asyncHandler(async (req: Request, res: Response) => {
@@ -170,9 +171,12 @@ export const issueForIPD = asyncHandler(async (req: Request, res: Response) => {
     }
 
 
-    // 5. Create issuance record
+    // 5. Create issuance record with formatted Invoice ID
+    const invoiceNo = await generatePharmaId(pharmaProfile._id, pharmaProfile.businessName || "PHARMA", "issuance");
+
     const issuance = await IPDMedicineIssuance.create({
         admissionId,
+        invoiceNo,
         admission: admission._id,
         patient: admission.patient,
         hospital: hospitalId,
@@ -254,6 +258,7 @@ export const issueForIPD = asyncHandler(async (req: Request, res: Response) => {
         message: "Medicines issued successfully. Pharmacy clearance set to PENDING.",
         data: {
             issuanceId: issuance._id,
+            invoiceNo,
             admissionId,
             totalAmount,
             itemCount: issuanceItems.length,
