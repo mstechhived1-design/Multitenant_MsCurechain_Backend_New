@@ -15,6 +15,7 @@ export interface ITransaction extends Document {
     upi?: number;
     card?: number;
   };
+  invoiceNumber?: string;
 }
 
 const transactionSchema = new Schema<ITransaction>({
@@ -52,6 +53,38 @@ const transactionSchema = new Schema<ITransaction>({
     upi: { type: Number, default: 0 },
     card: { type: Number, default: 0 },
   },
+  invoiceNumber: { type: String },
+});
+
+transactionSchema.pre("save", async function (next) {
+  if (!this.invoiceNumber && this.hospital) {
+    try {
+      // Find the most recently created transaction that ACTUALLY HAS an invoiceNumber
+      const lastTx = await mongoose
+        .model("Transaction")
+        .findOne({ hospital: this.hospital, type: this.type, invoiceNumber: { $exists: true, $ne: null } })
+        .sort({ date: -1, _id: -1 });
+
+      let nextNum = 1;
+      if (lastTx && lastTx.invoiceNumber && lastTx.invoiceNumber.includes("-")) {
+        const parts = lastTx.invoiceNumber.split("-");
+        nextNum = parseInt(parts[parts.length - 1], 10) + 1;
+      } else {
+        // Fallback for the very first sequential invoice
+        const count = await mongoose.model("Transaction").countDocuments({ hospital: this.hospital, type: this.type });
+        nextNum = count + 1;
+      }
+      
+      const prefix = this.type === "lab_test" ? "LAB" : "INV";
+      // padStart(4, "0") ensures 0001 to 9999. If nextNum is 10000, it becomes "10000" smoothly.
+      this.invoiceNumber = `${prefix}-${nextNum.toString().padStart(4, "0")}`;
+    } catch (err) {
+      console.error("Error generating invoiceNumber:", err);
+      const prefix = this.type === "lab_test" ? "LAB" : "INV";
+      this.invoiceNumber = `${prefix}-${Math.floor(Math.random() * 10000).toString().padStart(4, "0")}`;
+    }
+  }
+  next();
 });
 
 import multiTenancyPlugin from "../../middleware/tenantPlugin.js";

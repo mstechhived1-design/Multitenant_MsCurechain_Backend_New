@@ -24,6 +24,7 @@ const labOrderSchema = new Schema<ILabOrder>(
       required: true,
     },
     tokenNumber: { type: String },
+    sampleId: { type: String },
     prescription: { type: mongoose.Schema.Types.ObjectId, ref: "Prescription" },
     admission: { type: mongoose.Schema.Types.ObjectId, ref: "IPDAdmission" },
     tests: [
@@ -71,6 +72,34 @@ const labOrderSchema = new Schema<ILabOrder>(
   },
   { timestamps: true },
 );
+
+labOrderSchema.pre("save", async function (next) {
+  if (!this.sampleId && this.hospital) {
+    try {
+      // Find the most recently created order that ACTUALLY HAS a sampleId
+      const lastOrder = await mongoose
+        .model("LabOrder")
+        .findOne({ hospital: this.hospital, sampleId: { $exists: true, $ne: null } })
+        .sort({ createdAt: -1, _id: -1 });
+
+      let nextNum = 1;
+      if (lastOrder && lastOrder.sampleId && lastOrder.sampleId.includes("-")) {
+        const parts = lastOrder.sampleId.split("-");
+        nextNum = parseInt(parts[parts.length - 1], 10) + 1;
+      } else {
+        // Fallback for the very first sequential order
+        const count = await mongoose.model("LabOrder").countDocuments({ hospital: this.hospital });
+        nextNum = count + 1;
+      }
+      // padStart(4, "0") ensures 0001, 0002... 9999. It naturally allows 10000+ without resetting.
+      this.sampleId = `SMP-${nextNum.toString().padStart(4, "0")}`;
+    } catch (err) {
+      console.error("Error generating sampleId:", err);
+      this.sampleId = `SMP-${Math.floor(Math.random() * 10000).toString().padStart(4, "0")}`;
+    }
+  }
+  next();
+});
 
 import multiTenancyPlugin from "../../middleware/tenantPlugin.js";
 labOrderSchema.plugin(multiTenancyPlugin);

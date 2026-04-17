@@ -199,6 +199,7 @@ export const startConsultation = async (
     const labResults = await (
       LabOrder.find({
         tokenNumber: { $in: tokenNumbers },
+        doctorNotified: true,
       }) as any
     )
       .unscoped()
@@ -512,6 +513,7 @@ export const getConsultationSummary = async (
     const tokenNumbers = labTokens.map((t) => t.tokenNumber);
     const labResults = await LabOrder.find({
       tokenNumber: { $in: tokenNumbers },
+      doctorNotified: true,
     })
       .populate("tests.test", "testName name")
       .sort({ createdAt: -1 })
@@ -842,6 +844,9 @@ export const getLabResults = async (
     if (patientId) {
       query.patient = patientId;
     }
+
+    // ONLY SHOW RESULTS IF TECHNICIAN HAS EXPLICITLY NOTIFIED DOCTOR
+    query.doctorNotified = true;
 
     console.log("🔍 Executing query:", JSON.stringify(query));
 

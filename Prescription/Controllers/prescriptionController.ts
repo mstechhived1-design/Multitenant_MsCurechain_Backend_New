@@ -1148,6 +1148,13 @@ export const createPrescription = async (
         console.log(
           `[CreatePrescription] Lab Order Created: ${labOrder.tokenNumber}`,
         );
+
+        // Notify Lab via Socket for real-time count updates
+        const io = (req as any).io;
+        if (io && hospital) {
+          io.to(`hospital_${hospital}_lab`).emit("new_lab_order", { orderId: labOrder._id });
+          io.to(`hospital_${hospital}`).emit("new_lab_order", { orderId: labOrder._id });
+        }
       }
     }
 

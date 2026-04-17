@@ -312,13 +312,14 @@ export const createLabOrder = async (req: Request, res: Response) => {
         .emit("new_lab_order", { orderId: order._id });
     }
 
+    // Populate invoiceId to get the invoiceNumber in the response
+    const populatedOrder = await LabOrder.findById(order._id).populate("invoiceId");
+
     res.status(201).json({
       message: "Lab order created",
-      order,
+      order: populatedOrder,
       bill: {
-        invoiceId: order?.invoiceId
-          ? `LAB-${order.invoiceId.toString().slice(-6).toUpperCase()}`
-          : `ORDER-${order?._id.toString().slice(-6).toUpperCase()}`,
+        invoiceId: (populatedOrder?.invoiceId as any)?.invoiceNumber || `LAB-${order?.invoiceId?.toString().slice(-6).toUpperCase() || order?._id.toString().slice(-6).toUpperCase()}`,
         createdAt: order?.createdAt,
       },
     });
@@ -1078,7 +1079,7 @@ export const getAllInvoices = async (req: Request, res: Response) => {
 
       return {
         _id: inv._id,
-        invoiceId: `LAB-${inv._id.toString().slice(-6).toUpperCase()}`,
+        invoiceId: inv.invoiceNumber || `LAB-${inv._id.toString().slice(-6).toUpperCase()}`,
         patientDetails: {
           name: userObj.name || "Walk-in",
           mobile: userObj.mobile || "N/A",
@@ -1437,22 +1438,25 @@ const mapOrderToSample = (o: any) => {
     ["sample_collected", "processing", "paid", "registered"].includes(o.status)
   ) {
     // Registered walk-ins are effectively pending, but for the Unified UI:
-    if (o.status === "registered" || o.status === "prescribed")
+    if (["registered", "prescribed", "paid"].includes(o.status))
       statusMapped = "Pending";
     else statusMapped = "In Processing";
   }
 
   // Only use invoiceId for billing status - transactionId is for payment tracking only
   const invoiceId = o.invoiceId;
+  const invoiceNumStr = invoiceId && (invoiceId as any).invoiceNumber 
+    ? (invoiceId as any).invoiceNumber 
+    : invoiceId 
+      ? `LAB-${invoiceId.toString().slice(-6).toUpperCase()}` 
+      : `ORDER-${o._id.toString().slice(-6).toUpperCase()}`;
 
   return {
     _id: o._id,
     isWalkIn: !!o.walkInPatient,
-    billId: invoiceId
-      ? `LAB-${invoiceId.toString().slice(-6).toUpperCase()}`
-      : `ORDER-${o._id.toString().slice(-6).toUpperCase()}`,
-    sampleId: o.orderNumber || o._id.toString().slice(-6).toUpperCase(),
-    invoiceId: invoiceId ? invoiceId.toString() : undefined,
+    billId: invoiceNumStr,
+    sampleId: o.sampleId || o.orderNumber || o._id.toString().slice(-6).toUpperCase(),
+    invoiceId: invoiceId ? invoiceId._id ? invoiceId._id.toString() : invoiceId.toString() : undefined,
     paymentStatus: o.paymentStatus || "pending",
     patientDetails,
     sampleType: o.sampleType || "Blood/Urine",
@@ -1500,12 +1504,10 @@ export const getInternalOrders = async (req: Request, res: Response) => {
     if (status && status !== "All Samples") {
       if (status === "Pending") {
         internalQuery.status = "prescribed";
-        directQuery.status = "registered";
+        directQuery.status = { $in: ["registered", "paid"] };
       } else if (status === "In Processing") {
         internalQuery.status = { $in: ["sample_collected", "processing"] };
-        directQuery.status = {
-          $in: ["paid", "sample_collected", "processing"],
-        };
+        directQuery.status = { $in: ["sample_collected", "processing"] };
       } else if (status === "Completed") {
         internalQuery.status = "completed";
         directQuery.status = "completed";
@@ -1616,7 +1618,7 @@ export const getLabOrder = async (req: Request, res: Response) => {
   }
   try {
     const order: any = await LabOrder.findById(req.params.id)
-      .populate("patient doctor referredBy")
+      .populate("patient doctor referredBy invoiceId")
       .populate({
         path: "tests.test",
         populate: { path: "departmentId", select: "name" },
@@ -1716,10 +1718,12 @@ export const getLabOrder = async (req: Request, res: Response) => {
 
     const result = {
       _id: order._id,
-      billId: order.invoiceId
-        ? `LAB-${order.invoiceId.toString().slice(-6).toUpperCase()}`
-        : `ORDER-${order._id.toString().slice(-6).toUpperCase()}`,
-      sampleId: order._id.toString().slice(-6).toUpperCase(),
+      billId: order.invoiceId && order.invoiceId.invoiceNumber
+        ? order.invoiceId.invoiceNumber
+        : order.invoiceId
+          ? `LAB-${order.invoiceId._id?.toString().slice(-6).toUpperCase() || order.invoiceId.toString().slice(-6).toUpperCase()}`
+          : `ORDER-${order._id.toString().slice(-6).toUpperCase()}`,
+      sampleId: order.sampleId || order.orderNumber || order._id.toString().slice(-6).toUpperCase(),
       patientDetails: {
         name: order.patient?.name || "Walk-in Patient",
         age:
@@ -1760,6 +1764,14 @@ export const deleteLabOrder = async (req: Request, res: Response) => {
     const { id } = req.params;
     const order = await LabOrder.findByIdAndDelete(id);
     if (!order) return res.status(404).json({ message: "Order not found" });
+
+    // Notify Lab via Socket for real-time count updates
+    if (order.hospital) {
+      const hId = order.hospital.toString();
+      (req as any).io?.to(`hospital_${hId}`).emit("lab_order_updated", { orderId: id });
+      (req as any).io?.to(`hospital_${hId}_lab`).emit("lab_order_updated", { orderId: id });
+    }
+
     res.json({ message: "Order deleted successfully" });
   } catch (error) {
     console.error("Delete Lab Order Error:", error);
