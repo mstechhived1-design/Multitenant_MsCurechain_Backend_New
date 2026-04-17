@@ -19,6 +19,7 @@ import Transaction from "../../Admin/Models/Transaction.js";
 import IPDAdmission from "../../IPD/Models/IPDAdmission.js";
 import asyncHandler from "../../middleware/Error/errorMiddleware.js";
 import { invalidateDoctorCache } from "../../utils/cacheInvalidation.js";
+import { generateTransactionId, generateReceiptNumber } from "../../utils/idGenerator.js";
 
 dotenv.config();
 
@@ -409,6 +410,11 @@ export const bookAppointment = asyncHandler(
       let stripeSessionId = null;
       let paymentUrl = null;
 
+      const appTypePrefix = appointmentType.toUpperCase() === "IPD" ? "IPD" : 
+                           (appointmentType.toUpperCase() === "OPD" || appointmentType === "offline" ? "OPD" : "APT");
+      const transactionId = await generateTransactionId(targetHospitalId, hospital.name, appTypePrefix as any);
+      const receiptNumber = (finalPaymentStatus === "Paid" || finalPaymentStatus === "paid") ? await generateReceiptNumber(targetHospitalId) : undefined;
+
       const appointment = await Appointment.create({
         patient: patientId,
         globalPatientId: patientId,
@@ -416,7 +422,7 @@ export const bookAppointment = asyncHandler(
         hospital: targetHospitalId,
         date: new Date(date),
         appointmentTime: startTime, // Set appointmentTime for compatibility
-        appointmentId: `APT-${Date.now()}-${Math.floor(Math.random() * 1000)}`, // Generate custom ID
+        appointmentId: transactionId, // Use new unique ID format
         startTime,
         endTime,
         symptoms: finalSymptoms,
@@ -432,6 +438,7 @@ export const bookAppointment = asyncHandler(
           amount: finalAmount,
           paymentMethod: finalPaymentMethod,
           paymentStatus: finalPaymentStatus,
+          receiptNumber: receiptNumber, // Store generated receipt number
         },
         amount: finalAmount,
         vitals: finalVitals,
@@ -450,6 +457,8 @@ export const bookAppointment = asyncHandler(
               : "appointment_booking",
           status: finalPaymentStatus === "Paid" ? "completed" : "pending",
           referenceId: appointment._id,
+          transactionId: transactionId,
+          receiptNumber: receiptNumber,
           date: new Date(),
           paymentMode: bookingReq.body.paymentMethod || "cash",
           paymentDetails: {

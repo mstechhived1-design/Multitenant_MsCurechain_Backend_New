@@ -12,6 +12,7 @@ import Bed from "../Models/Bed.js";
 import redisService from "../../config/redis.js";
 import Prescription from "../../Prescription/Models/Prescription.js";
 import PharmacyOrder from "../../Pharmacy/Models/PharmacyOrder.js";
+import { generateTransactionId, generateReceiptNumber } from "../../utils/idGenerator.js";
 
 // Helper to calculate total bill breakdown
 export const calculateBillBreakdown = async (admissionId: string) => {
@@ -318,6 +319,16 @@ export const addAdvancePayment = asyncHandler(
     if (!admission) throw new ApiError(404, "Admission not found");
 
     const effectiveTransactionType = transactionType || (admission.status === "Discharge Initiated" ? "Settlement" : "Advance");
+    
+    // Generate Receipt Number
+    const receiptNumber = await generateReceiptNumber(admission.hospital);
+    
+    // Get hospital name for transaction ID
+    const hospital = await Hospital.findById(admission.hospital).select("name");
+    const hospitalName = hospital?.name || "HOSPITAL";
+    
+    const typeMap: any = { "Advance": "IPD", "Settlement": "IPD", "Refund": "IPD" };
+    const transactionId = await generateTransactionId(admission.hospital, hospitalName, typeMap[effectiveTransactionType] || "IPD");
 
     const payment = await IPDAdvancePayment.create({
       patient: admission.patient,
@@ -326,7 +337,7 @@ export const addAdvancePayment = asyncHandler(
       hospital: admission.hospital,
       amount,
       mode,
-      reference,
+      reference: reference || receiptNumber, // Use generated receipt number as reference if none provided
       transactionType: effectiveTransactionType,
       date: date || new Date(),
       receivedBy: req.user._id,
@@ -372,6 +383,8 @@ export const addAdvancePayment = asyncHandler(
         effectiveTransactionType === "Refund" ? "ipd_refund" : "ipd_advance",
       status: "completed",
       referenceId: admission._id,
+      transactionId: transactionId,
+      receiptNumber: receiptNumber,
       date: date || new Date(),
       paymentMode: transactionMode,
       paymentDetails: {

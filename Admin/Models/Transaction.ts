@@ -1,4 +1,6 @@
 import mongoose, { Schema, Document, Types } from "mongoose";
+import { generateTransactionId, generateReceiptNumber, getHospitalCode } from "../../utils/idGenerator.js";
+import Hospital from "../../Hospital/Models/Hospital.js";
 
 export interface ITransaction extends Document {
   user: Types.ObjectId;
@@ -15,6 +17,8 @@ export interface ITransaction extends Document {
     upi?: number;
     card?: number;
   };
+  receiptNumber?: string;
+  transactionId?: string;
   invoiceNumber?: string;
 }
 
@@ -53,35 +57,40 @@ const transactionSchema = new Schema<ITransaction>({
     upi: { type: Number, default: 0 },
     card: { type: Number, default: 0 },
   },
+  receiptNumber: { type: String },
+  transactionId: { type: String },
   invoiceNumber: { type: String },
 });
 
 transactionSchema.pre("save", async function (next) {
-  if (!this.invoiceNumber && this.hospital) {
+  if (this.hospital && (!this.transactionId || !this.receiptNumber)) {
     try {
-      // Find the most recently created transaction that ACTUALLY HAS an invoiceNumber
-      const lastTx = await mongoose
-        .model("Transaction")
-        .findOne({ hospital: this.hospital, type: this.type, invoiceNumber: { $exists: true, $ne: null } })
-        .sort({ date: -1, _id: -1 });
+      const hospital = await Hospital.findById(this.hospital).select("name");
+      const hospitalName = hospital?.name || "HOSPITAL";
 
-      let nextNum = 1;
-      if (lastTx && lastTx.invoiceNumber && lastTx.invoiceNumber.includes("-")) {
-        const parts = lastTx.invoiceNumber.split("-");
-        nextNum = parseInt(parts[parts.length - 1], 10) + 1;
-      } else {
-        // Fallback for the very first sequential invoice
-        const count = await mongoose.model("Transaction").countDocuments({ hospital: this.hospital, type: this.type });
-        nextNum = count + 1;
+      if (!this.transactionId) {
+        const typeMap: any = {
+          appointment_booking: "APT",
+          ipd_advance: "IPD",
+          ipd_settlement: "IPD",
+          ipd_refund: "IPD",
+          pharmacy: "OPD",
+          lab_test: "OPD",
+        };
+        const typePrefix = typeMap[this.type] || "GEN";
+        this.transactionId = await generateTransactionId(this.hospital, hospitalName, typePrefix as any);
+      }
+
+      if (!this.receiptNumber && this.status === "completed") {
+        this.receiptNumber = await generateReceiptNumber(this.hospital);
       }
       
-      const prefix = this.type === "lab_test" ? "LAB" : "INV";
-      // padStart(4, "0") ensures 0001 to 9999. If nextNum is 10000, it becomes "10000" smoothly.
-      this.invoiceNumber = `${prefix}-${nextNum.toString().padStart(4, "0")}`;
+      // Keep legacy invoiceNumber sync if needed, or point it to the new IDs
+      if (!this.invoiceNumber) {
+        this.invoiceNumber = this.receiptNumber || this.transactionId;
+      }
     } catch (err) {
-      console.error("Error generating invoiceNumber:", err);
-      const prefix = this.type === "lab_test" ? "LAB" : "INV";
-      this.invoiceNumber = `${prefix}-${Math.floor(Math.random() * 10000).toString().padStart(4, "0")}`;
+      console.error("Error in Transaction pre-save ID generation:", err);
     }
   }
   next();
