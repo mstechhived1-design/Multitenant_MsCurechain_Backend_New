@@ -416,6 +416,28 @@ export const getPharmacyOrder = async (
           };
         }
       }
+
+      // ✅ BED HISTORY: Fetch all previous room/bed transfers for this admission
+      const bedHistoryRecords = await (mongoose.model("BedOccupancy").find({
+        admission: admission._id,
+      }) as any)
+        .unscoped()
+        .sort({ startDate: 1 })
+        .populate({
+            path: "bed",
+            select: "bedId room type dailyRateAtTime pricePerDay",
+            options: { unscoped: true } as any
+        })
+        .lean();
+
+      enrichedOrder.admission.bedHistory = bedHistoryRecords.map((occ: any) => ({
+        bedId: occ.bed?.bedId || "Unknown",
+        room: occ.bed?.room || "General",
+        type: occ.bed?.type || "Standard",
+        startDate: occ.startDate,
+        endDate: occ.endDate,
+        pricePerDay: occ.dailyRateAtTime || occ.bed?.pricePerDay || 0
+      }));
     }
 
     res.json({

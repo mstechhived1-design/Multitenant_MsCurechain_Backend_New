@@ -191,22 +191,39 @@ export class DischargeService {
         .lean(),
     ]);
 
-    // Get bed information (find the most recent occupancy for this admission)
-    const bedOccupancy = await (
-      BedOccupancy.findOne({
+    // Get bed information (find all occupancies for this admission)
+    const occupancies = await (
+      BedOccupancy.find({
         admission: admission._id,
       }) as any
     )
       .unscoped()
-      .sort({ createdAt: -1 });
+      .populate("bed")
+      .sort({ startDate: 1 });
 
-    // Resolve Bed Details from Standalone Collection
-    let resolvedBed: any = null;
-    if (bedOccupancy && bedOccupancy.bed) {
-      resolvedBed = await (Bed.findById(bedOccupancy.bed) as any)
-        .unscoped()
-        .lean();
-    }
+    const bedHistory = occupancies.map((occ: any) => ({
+      ward: (occ.bed as any)?.ward || (occ.bed as any)?.type || "N/A",
+      room: (occ.bed as any)?.room || "N/A",
+      bed: (occ.bed as any)?.bedId || "N/A",
+      startDate: occ.startDate,
+      endDate: occ.endDate || "Current",
+      rate: occ.dailyRateAtTime,
+    }));
+
+    // Resolve Current Bed Details
+    const currentOccupancy = occupancies.find((occ: any) => !occ.endDate) || occupancies[occupancies.length - 1];
+    const resolvedBed = currentOccupancy?.bed;
+
+    // Resolve demographics with fallback to PatientProfile
+    const patientUser = admission.patient as any;
+    const dob =
+      patientUser.dateOfBirth ||
+      (patientProfile as any)?.dateOfBirth ||
+      (patientProfile as any)?.dob;
+    const gender = patientUser.gender || (patientProfile as any)?.gender;
+    const bloodGroup =
+      patientUser.bloodGroup || (patientProfile as any)?.bloodGroup;
+    const address = patientUser.address || (patientProfile as any)?.address;
 
     // Calculate age from date of birth
     const calculateAge = (dob: any) => {
@@ -221,14 +238,6 @@ export class DischargeService {
       return age.toString();
     };
 
-    // Format vitals
-    const formatVitals = (vitals: any) => {
-      if (!vitals) return "";
-      return Object.entries(vitals)
-        .map(([key, value]) => `${key}: ${value}`)
-        .join(", ");
-    };
-
     // RE-FETCH RAW ADMISSION if primaryDoctor is missing (popuplate failed)
     let rawDoctorId = null;
     if (!(admission as any).primaryDoctor) {
@@ -237,30 +246,6 @@ export class DischargeService {
         .select("primaryDoctor")
         .lean();
       rawDoctorId = (rawAdm as any)?.primaryDoctor;
-    }
-
-    // Resolve demographics with fallback to PatientProfile
-    const patientUser = admission.patient as any;
-    const dob =
-      patientUser.dateOfBirth ||
-      (patientProfile as any)?.dateOfBirth ||
-      (patientProfile as any)?.dob;
-    const gender = patientUser.gender || (patientProfile as any)?.gender;
-    const bloodGroup =
-      patientUser.bloodGroup || (patientProfile as any)?.bloodGroup;
-    const address = patientUser.address || (patientProfile as any)?.address;
-
-    // Bed Information Fallback: If no Active Bed, find LATEST Bed
-    let currentBedOccupancy: any = bedOccupancy;
-    if (!currentBedOccupancy) {
-      currentBedOccupancy = await (
-        BedOccupancy.findOne({
-          admission: admission._id,
-        }) as any
-      )
-        .unscoped()
-        .sort({ startDate: -1 })
-        .populate("bed");
     }
 
     // Doctor Information Fallback
@@ -361,6 +346,8 @@ export class DischargeService {
       roomType: resolvedBed?.type || (admission as any).roomType || (admission as any).wardType || "",
       bedNo: resolvedBed?.bedId || resolvedBed?.label || (admission as any).bedNo || "",
       department: (admission as any).department || resolvedBed?.department || (doctorProfile as any)?.department || "General",
+      bedHistory,
+      bedCharges: billingBreakdown?.bedCharges || null,
 
       // Dates & Type
       admissionType: (admission as any).admissionType || "IPD",
