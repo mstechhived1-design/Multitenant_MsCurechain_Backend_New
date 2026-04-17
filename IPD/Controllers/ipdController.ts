@@ -14,6 +14,7 @@ import ApiError from "../../utils/ApiError.js";
 import redisService from "../../config/redis.js";
 import DoctorProfile from "../../Doctor/Models/DoctorProfile.js";
 import Transaction from "../../Admin/Models/Transaction.js";
+import { generateTransactionId, generateReceiptNumber } from "../../utils/idGenerator.js";
 
 const generateId = (prefix: string) => {
   const timestamp = Date.now().toString();
@@ -157,7 +158,12 @@ export const initiateAdmission = asyncHandler(
       }
 
       // 4. Create Admission
-      let admissionId = generateId("ADM");
+      let admissionId = await generateTransactionId(hospital, hospitalDoc.name, "IPD", session);
+      let advanceReceiptNumber: string | undefined;
+      
+      if (paymentStatus === "paid" && amount > 0) {
+        advanceReceiptNumber = await generateReceiptNumber(hospital, session);
+      }
 
       // Check for recent IPD appointment for data integrity & payment synchronization
       const AppointmentModel = (
@@ -244,6 +250,7 @@ export const initiateAdmission = asyncHandler(
                     ? "Card"
                     : "Cash",
               transactionType: "Advance",
+              reference: advanceReceiptNumber, // Store generated receipt number in reference field
               date: new Date(),
               receivedBy: (req as any).user._id,
             },
@@ -262,6 +269,8 @@ export const initiateAdmission = asyncHandler(
               type: "ipd_advance",
               status: "completed",
               referenceId: admission._id,
+              transactionId: admissionId,
+              receiptNumber: advanceReceiptNumber,
               date: new Date(),
               paymentMode:
                 paymentMethod === "upi"

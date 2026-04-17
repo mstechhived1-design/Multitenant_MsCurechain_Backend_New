@@ -2051,6 +2051,9 @@ export const getTransactions = async (req: Request, res: Response) => {
             : "Pending",
       referenceId: t.referenceId, // Include populated clinical details
       paymentDetails: t.paymentDetails,
+      transactionId: t.transactionId,
+      receiptNumber: t.receiptNumber,
+      invoiceNumber: t.invoiceNumber,
     }));
 
     res.json({

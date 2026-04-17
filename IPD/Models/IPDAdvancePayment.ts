@@ -29,9 +29,36 @@ const ipdAdvancePaymentSchema = new Schema<IIPDAdvancePayment>(
     },
     date: { type: Date, default: Date.now },
     receivedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    transactionId: { type: String, unique: true },
+    receiptNumber: { type: String },
   },
   { timestamps: true },
 );
+
+// 🛡️ Pre-save ID Generation Logic
+ipdAdvancePaymentSchema.pre("save", async function (next) {
+  if (this.hospital && (!this.transactionId || (this.transactionType !== "Refund" && !this.receiptNumber))) {
+    try {
+      const Hospital = mongoose.model("Hospital");
+      const hospital = await Hospital.findById(this.hospital).select("name");
+      const hospitalName = hospital?.name || "HOSPITAL";
+
+      if (!this.transactionId) {
+        const { generateTransactionId } = await import("../../utils/idGenerator.js");
+        const typePrefix = this.transactionType === "Refund" ? "REF" : "IPD";
+        this.transactionId = await generateTransactionId(this.hospital, hospitalName, typePrefix);
+      }
+
+      if (!this.receiptNumber && this.transactionType !== "Refund") {
+        const { generateReceiptNumber } = await import("../../utils/idGenerator.js");
+        this.receiptNumber = await generateReceiptNumber(this.hospital);
+      }
+    } catch (err) {
+      console.error("Error generating IDs for IPDAdvancePayment:", err);
+    }
+  }
+  next();
+});
 
 import multiTenancyPlugin from "../../middleware/tenantPlugin.js";
 ipdAdvancePaymentSchema.plugin(multiTenancyPlugin);

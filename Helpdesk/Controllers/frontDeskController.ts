@@ -16,6 +16,7 @@ import MrnCounter from "../../Hospital/Models/MrnCounter.js";
 import { HelpdeskRequest } from "../types/index.js";
 import redisService from "../../config/redis.js";
 import Transaction from "../../Admin/Models/Transaction.js";
+import { generateTransactionId, generateReceiptNumber } from "../../utils/idGenerator.js";
 
 const invalidateIPDCache = async (
   hospitalId: string,
@@ -477,8 +478,17 @@ export const registerPatient = asyncHandler(
 
       let appointment: any = null as any;
       if (finalDoctorId) {
+        // Resolve hospital name for structured ID generation
+        const hospitalDoc = await Hospital.findById(hospitalId).session(session).select("name");
+        const hospitalName = hospitalDoc?.name || "HOSPITAL";
+        
+        const appTypePrefix = visitTypeInput.toUpperCase() === "IPD" ? "IPD" : 
+                            (visitTypeInput.toUpperCase() === "OPD" || visitTypeInput.toLowerCase() === "offline" ? "OPD" : "APT");
+        const transactionId = await generateTransactionId(hospitalId, hospitalName, appTypePrefix as any, session);
+        const generatedReceiptNumber = (finalPaymentStatus === "Paid" || finalPaymentStatus === "paid") ? await generateReceiptNumber(hospitalId, session) : undefined;
+
         appointment = new Appointment({
-          appointmentId: generateId("APT"),
+          appointmentId: transactionId, // Use new unique ID format
           patient: user._id,
           doctor: finalDoctorId,
           hospital: hospitalId,
@@ -502,7 +512,7 @@ export const registerPatient = asyncHandler(
             amount: finalPaymentAmount,
             paymentMethod: finalPaymentMethod,
             paymentStatus: finalPaymentStatus,
-            receiptNumber,
+            receiptNumber: receiptNumber || generatedReceiptNumber, // Prefer incoming if provided, else generate
           },
           amount: finalPaymentAmount,
           paymentStatus: finalPaymentStatus,
@@ -539,6 +549,8 @@ export const registerPatient = asyncHandler(
                     : "appointment_booking",
                 status: finalPaymentStatus === "Paid" ? "completed" : "pending",
                 referenceId: appointment._id,
+                transactionId: appointment.appointmentId,
+                receiptNumber: appointment.payment?.receiptNumber,
                 date: new Date(),
                 paymentMode: finalPaymentMethod.toLowerCase(),
                 paymentDetails: {
