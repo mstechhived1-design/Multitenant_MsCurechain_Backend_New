@@ -29,7 +29,7 @@ export const getHospitalCode = (hospitalName: string): string => {
 export const generateTransactionId = async (
   hospitalId: any,
   hospitalName: string,
-  type: "OPD" | "IPD" | "APT",
+  type: "OPD" | "IPD" | "APT" | "REF",
   session?: any
 ): Promise<string> => {
   const hhh = getHospitalCode(hospitalName);

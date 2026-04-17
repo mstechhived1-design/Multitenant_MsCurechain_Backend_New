@@ -116,6 +116,8 @@ export interface IIPDAdvancePayment extends Document {
   transactionType: "Advance" | "Refund" | "Settlement";
   date: Date;
   receivedBy: Types.ObjectId;
+  transactionId?: string;
+  receiptNumber?: string;
 }
 
 export interface IRoom extends Document {

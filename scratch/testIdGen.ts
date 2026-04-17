@@ -1,4 +1,4 @@
-import { getHospitalCode } from '../utils/idGenerator';
+import { getHospitalCode } from '../utils/idGenerator.js';
 
 const testCases = [
   { name: "Health Science Medical", expected: "HSM" },

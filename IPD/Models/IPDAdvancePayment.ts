@@ -36,7 +36,7 @@ const ipdAdvancePaymentSchema = new Schema<IIPDAdvancePayment>(
 );
 
 // 🛡️ Pre-save ID Generation Logic
-ipdAdvancePaymentSchema.pre("save", async function (next) {
+ipdAdvancePaymentSchema.pre("save", async function (this: any, next) {
   if (this.hospital && (!this.transactionId || (this.transactionType !== "Refund" && !this.receiptNumber))) {
     try {
       const Hospital = mongoose.model("Hospital");
