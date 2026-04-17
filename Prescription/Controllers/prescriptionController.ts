@@ -1192,6 +1192,33 @@ export const createPrescription = async (
       console.log(`[CreatePrescription] Synced demographics for Patient: ${patient}`);
     }
 
+    // --- Sync Symptoms to IPD Admission (so inpatient page shows latest symptoms) ---
+    if (admissionObjectId && symptoms && symptoms.length > 0) {
+      const symptomsText = Array.isArray(symptoms) ? symptoms.join(', ') : String(symptoms);
+      await IPDAdmission.findByIdAndUpdate(
+        admissionObjectId,
+        {
+          $set: {
+            reason: symptomsText,
+            clinicalNotes: symptomsText,
+          }
+        },
+        { session }
+      );
+      console.log(`[CreatePrescription] Synced symptoms to IPD Admission: ${admissionObjectId}`);
+
+      // Emit socket event for real-time refresh on inpatient page
+      const io = (req as any).io;
+      if (io && hospital) {
+        io.to(`hospital_${hospital}`).emit('ipd:bed_updated', { 
+           admissionId: admissionObjectId,
+           hospitalId: hospital,
+           reason: symptomsText,
+           updatedBy: doctorId 
+        });
+      }
+    }
+
     await session.commitTransaction();
     session.endSession();
 

@@ -75,7 +75,9 @@ const DermatologyPrescriptionSchema: Schema = new Schema(
         "Bulla",
         "Nodule",
         "Pustule",
+        "",
       ],
+      default: "",
     },
     lesionCount: { type: Number },
     size: { type: String },
@@ -97,7 +99,8 @@ const DermatologyPrescriptionSchema: Schema = new Schema(
     },
     distribution: {
       type: String,
-      enum: ["Localized", "Generalized", "Symmetrical", "Asymmetrical"],
+      enum: ["Localized", "Generalized", "Symmetrical", "Asymmetrical", "Sun-exposed", "Intertriginous", ""],
+      default: ""
     },
 
     // C. Appearance & Surface
@@ -118,22 +121,23 @@ const DermatologyPrescriptionSchema: Schema = new Schema(
     // D. Symptoms
     itchingSeverity: {
       type: String,
-      enum: ["None", "Mild", "Moderate", "Severe"],
+      enum: ["None", "Mild", "Moderate", "Severe", ""],
       default: "None",
     },
     painSeverity: {
       type: String,
-      enum: ["None", "Mild", "Moderate", "Severe"],
+      enum: ["None", "Mild", "Moderate", "Severe", ""],
       default: "None",
     },
     burning: { type: Boolean, default: false },
 
     // E. Duration & Progression
     duration: { type: String },
-    onset: { type: String, enum: ["Acute", "Chronic"] },
+    onset: { type: String, enum: ["Acute", "Chronic", ""], default: "" },
     progression: {
       type: String,
-      enum: ["Improving", "Worsening", "Stable"],
+      enum: ["Improving", "Worsening", "Stable", ""],
+      default: ""
     },
 
     // F. Provisional Diagnosis

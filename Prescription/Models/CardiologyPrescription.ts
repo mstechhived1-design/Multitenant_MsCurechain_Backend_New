@@ -106,7 +106,8 @@ const CardiologyPrescriptionSchema: Schema = new Schema(
     // D. ECG Findings
     ecgType: {
       type: String,
-      enum: ["Normal", "ST Elevation", "ST Depression", "T Wave Inversion", "Arrhythmia"]
+      enum: ["Normal", "ST Elevation", "ST Depression", "T Wave Inversion", "Arrhythmia", ""],
+      default: "Normal"
     },
     ecgLeads: {
       type: [String],
@@ -115,10 +116,10 @@ const CardiologyPrescriptionSchema: Schema = new Schema(
     ecgNotes: { type: String },
 
     // E. Heart Sounds
-    s1: { type: String, enum: ["Normal", "Loud", "Soft"] },
-    s2: { type: String, enum: ["Normal", "Loud", "Soft"] },
-    murmur: { type: String, enum: ["None", "Present"] },
-    murmurType: { type: String, enum: ["Systolic", "Diastolic"] },
+    s1: { type: String, enum: ["Normal", "Loud", "Soft", ""], default: "Normal" },
+    s2: { type: String, enum: ["Normal", "Loud", "Soft", ""], default: "Normal" },
+    murmur: { type: String, enum: ["None", "Present", ""], default: "None" },
+    murmurType: { type: String, enum: ["Systolic", "Diastolic", ""], default: "" },
 
     // F. Cardiac Risk Level
     riskLevel: {
@@ -130,7 +131,7 @@ const CardiologyPrescriptionSchema: Schema = new Schema(
     // G. Functional Status
     nyhaClass: {
       type: String,
-      enum: ["I", "II", "III", "IV"]
+      enum: ["I", "II", "III", "IV", ""]
     },
 
     notes: { type: String },

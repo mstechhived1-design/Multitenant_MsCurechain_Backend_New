@@ -119,25 +119,29 @@ const PediatricsExaminationSchema: Schema = new Schema(
     growth: {
       weightForAge: {
         type: String,
-        enum: ["Normal", "Underweight", "Overweight"],
+        enum: ["Normal", "Underweight", "Overweight", ""],
+        default: ""
       },
       heightForAge: {
         type: String,
-        enum: ["Normal", "Stunted"],
+        enum: ["Normal", "Stunted", ""],
+        default: ""
       },
     },
 
     // D. Developmental Milestones
     milestones: {
       type: String,
-      enum: ["Normal", "Delayed", "Borderline"],
+      enum: ["Normal", "Delayed", "Borderline", ""],
+      default: ""
     },
     milestoneNotes: { type: String },
 
     // E. Immunization
     immunizationStatus: {
       type: String,
-      enum: ["Up to date", "Partially immunized", "Not immunized"],
+      enum: ["Up to date", "Partially immunized", "Not immunized", ""],
+      default: ""
     },
     dueVaccines: {
       type: [String],
