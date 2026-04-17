@@ -26,7 +26,7 @@ export interface INeurologyExamination extends Document {
   };
 
   // D. Reflexes
-  reflexes: "Normal (2+)" | "Hyperreflexia (3+)" | "Hyporeflexia (1+)" | "Absent (0)";
+  reflexes: "Normal (2+)" | "Hyperreflexia (3+)" | "Hyporeflexia (1+)" | "Absent (0)" | "";
 
   // E. Cranial Nerves
   cranialNerves: "Normal" | "Abnormal";
@@ -38,10 +38,10 @@ export interface INeurologyExamination extends Document {
   )[];
 
   // F. Sensory System
-  sensory: "Normal" | "Reduced" | "Absent";
+  sensory: "Normal" | "Reduced" | "Absent" | "";
 
   // G. Coordination
-  coordination: "Normal" | "Ataxia" | "Positive Romberg";
+  coordination: "Normal" | "Ataxia" | "Positive Romberg" | "";
 
   // H. Symptoms
   symptoms: (
@@ -55,7 +55,7 @@ export interface INeurologyExamination extends Document {
   )[];
 
   // I. Onset
-  onset: "Sudden" | "Gradual" | "Chronic";
+  onset: "Sudden" | "Gradual" | "Chronic" | "";
 
   // J. Notes
   notes?: string;
@@ -120,7 +120,8 @@ const NeurologyExaminationSchema: Schema = new Schema(
     // B. Mental Status
     mentalStatus: {
       type: String,
-      enum: ["Alert", "Drowsy", "Stupor", "Coma"],
+      enum: ["Alert", "Drowsy", "Stupor", "Coma", ""],
+      default: "",
       required: [true, "Mental status is required"],
     },
 
@@ -155,12 +156,8 @@ const NeurologyExaminationSchema: Schema = new Schema(
     // D. Reflexes
     reflexes: {
       type: String,
-      enum: [
-        "Normal (2+)",
-        "Hyperreflexia (3+)",
-        "Hyporeflexia (1+)",
-        "Absent (0)",
-      ],
+      enum: ["Normal (2+)", "Hyperreflexia (3+)", "Hyporeflexia (1+)", "Absent (0)", ""],
+      default: "Normal (2+)",
       required: [true, "Reflex status is required"],
     },
 
@@ -187,14 +184,16 @@ const NeurologyExaminationSchema: Schema = new Schema(
     // F. Sensory System
     sensory: {
       type: String,
-      enum: ["Normal", "Reduced", "Absent"],
+      enum: ["Normal", "Reduced", "Absent", ""],
+      default: "Normal",
       required: [true, "Sensory status is required"],
     },
 
     // G. Coordination
     coordination: {
       type: String,
-      enum: ["Normal", "Ataxia", "Positive Romberg"],
+      enum: ["Normal", "Ataxia", "Positive Romberg", ""],
+      default: "Normal",
       required: [true, "Coordination status is required"],
     },
 
@@ -221,7 +220,8 @@ const NeurologyExaminationSchema: Schema = new Schema(
     // I. Onset
     onset: {
       type: String,
-      enum: ["Sudden", "Gradual", "Chronic"],
+      enum: ["Sudden", "Gradual", "Chronic", ""],
+      default: "",
       required: [true, "Onset is required"],
     },
 

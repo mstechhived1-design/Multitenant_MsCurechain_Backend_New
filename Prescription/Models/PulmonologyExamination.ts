@@ -29,7 +29,7 @@ const PulmonologyExaminationSchema = new mongoose.Schema(
       spo2: { type: Number, required: true, min: 0, max: 100 },
       oxygenSupport: {
         type: String,
-        enum: ["Room Air", "Nasal Oxygen", "Mask", "Ventilator"],
+        enum: ["Room Air", "Nasal Oxygen", "Mask", "Ventilator", ""],
         default: "Room Air",
       },
     },
@@ -48,18 +48,21 @@ const PulmonologyExaminationSchema = new mongoose.Schema(
     exam: {
       chestExpansion: {
         type: String,
-        enum: ["Normal", "Reduced", "Asymmetrical"],
+        enum: ["Normal", "Reduced", "Asymmetrical", ""],
+        default: "Normal"
       },
       accessoryMuscles: {
         type: String,
-        enum: ["Yes", "No"],
+        enum: ["Yes", "No", ""],
+        default: ""
       },
     },
 
     auscultation: {
       airEntry: {
         type: String,
-        enum: ["Normal", "Reduced Right", "Reduced Left", "Absent"],
+        enum: ["Normal", "Reduced Right", "Reduced Left", "Absent", ""],
+        default: "Normal"
       },
       sounds: [{
         type: String,
@@ -76,7 +79,8 @@ const PulmonologyExaminationSchema = new mongoose.Schema(
     },
     severity: {
       type: String,
-      enum: ["Mild", "Moderate", "Severe", "Acute Exacerbation"],
+      enum: ["Mild", "Moderate", "Severe", "Acute Exacerbation", ""],
+      default: ""
     },
 
     notes: {
