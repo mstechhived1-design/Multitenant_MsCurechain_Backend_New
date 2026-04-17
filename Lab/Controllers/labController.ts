@@ -661,6 +661,18 @@ export const finalizeOrder = async (req: Request, res: Response) => {
 
     if (!order) return res.status(404).json({ message: "Order not found" });
 
+    // ── Duplicate Invoice Guard ─────────────────────────────────────────────
+    // If this order already has an invoice, block re-creation to prevent duplicates
+    if (order.invoiceId) {
+      console.warn(`[FinalizeOrder] Duplicate attempt blocked for order ${id}. Invoice: ${order.invoiceId}`);
+      return res.status(409).json({
+        message: "Invoice already generated for this order.",
+        invoiceId: order.invoiceId,
+        duplicate: true,
+      });
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     // Update Patient Details if provided (Fix for missing age/gender)
     if (patientDetails && order.patient) {
       const patient = await Patient.findById(order.patient);
