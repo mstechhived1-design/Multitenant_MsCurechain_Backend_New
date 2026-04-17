@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email OTP</title>
+    <style>
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .container {
+            background-color: #ffffff;
+            width: 100%;
+            max-width: 500px;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+            text-align: center;
+            margin: 20px auto;
+        }
+
+        h1 {
+            color: #1a73e8;
+            /* Blue color similar to image */
+            font-size: 28px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+
+        hr {
+            border: 0;
+            border-top: 1px solid #e0e0e0;
+            margin-bottom: 30px;
+        }
+
+        .content {
+            text-align: left;
+            color: #333333;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        .otp-code {
+            display: block;
+            text-align: center;
+            font-size: 48px;
+            font-weight: bold;
+            color: #28a745;
+            /* Green color similar to image */
+            margin: 30px 0;
+            letter-spacing: 5px;
+        }
+
+        .footer {
+            margin-top: 40px;
+            font-size: 12px;
+            color: #888888;
+            text-align: center;
+        }
+
+        .footer a {
+            color: #1a73e8;
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Email OTP</h1>
+        <hr>
+        <div class="content">
+            <p>Dear User,</p>
+            <p>Your One-Time Password (OTP) is:</p>
+
+            <span class="otp-code">{{OTP}}</span>
+
+            <p>Please use this OTP to complete your Registration process. Do not share this code with anyone.</p>
+            <p>This OTP will expery in 10min</p>
+            <p>Thank you for using MSCureChain!</p>
+        </div>
+        <div class="footer">
+            <p>&copy; 2025 MSCureChain. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+
+</html>
