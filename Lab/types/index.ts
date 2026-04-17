@@ -85,6 +85,7 @@ export interface ILabOrder extends Document {
   referredBy?: Types.ObjectId | IUser;
   hospital?: Types.ObjectId;
   tokenNumber?: string;
+  sampleId?: string;
   prescription?: Types.ObjectId;
   admission?: Types.ObjectId;
   tests: {
