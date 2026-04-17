@@ -89,6 +89,8 @@ export interface IDischargeRecord extends Document {
   remainingAmount?: number; // Total Bill - Advance (NEW)
   totalPaidAmount?: number; // Advance + Remaining (NEW)
   balance?: number; // Final settlement amount
+  transactionId?: string;
+  receiptNumber?: string;
   infectionFlags?: {
     hasSSI: boolean;
     hasUTI: boolean;
@@ -200,6 +202,8 @@ const DischargeRecordSchema: Schema = new Schema(
     remainingAmount: { type: Number, default: 0 }, // NEW
     totalPaidAmount: { type: Number, default: 0 }, // NEW
     balance: { type: Number, default: 0 },
+    transactionId: { type: String },
+    receiptNumber: { type: String },
     infectionFlags: {
       hasSSI: { type: Boolean, default: false },
       hasUTI: { type: Boolean, default: false },
@@ -212,6 +216,30 @@ const DischargeRecordSchema: Schema = new Schema(
   },
   { timestamps: true },
 );
+
+// 🛡️ Pre-save ID Generation for Final Settlement
+DischargeRecordSchema.pre("save", async function (next) {
+  if (this.hospital && this.status === "completed" && (!this.transactionId || !this.receiptNumber)) {
+    try {
+      const Hospital = mongoose.model("Hospital");
+      const hospital = await Hospital.findById(this.hospital).select("name");
+      const hospitalName = hospital?.name || "HOSPITAL";
+
+      if (!this.transactionId) {
+        const { generateTransactionId } = await import("../../utils/idGenerator.js");
+        this.transactionId = await generateTransactionId(this.hospital, hospitalName, "IPD");
+      }
+
+      if (!this.receiptNumber) {
+        const { generateReceiptNumber } = await import("../../utils/idGenerator.js");
+        this.receiptNumber = await generateReceiptNumber(this.hospital);
+      }
+    } catch (err) {
+      console.error("Error generating IDs for DischargeRecord:", err);
+    }
+  }
+  next();
+});
 
 import multiTenancyPlugin from "../../middleware/tenantPlugin.js";
 DischargeRecordSchema.plugin(multiTenancyPlugin);
